@@ -1,5 +1,9 @@
 # GoogleUnlimited
 
+## Mac graphical app (this fork)
+
+**macOS Monterey 12 / Intel MacBook:** Build the [native Mac app](mac-app/README.md) locally with `bash build-mac-app.sh` and open `GoogleUnlimited.app`. Buttons include start/stop upload, upload statistics, logs and choosing the upload folder. The compiled `.app` stays next to `google-unlimited.sh` in your cloned repo. No new cloud backend is involved.
+
 > **Security notice for this fork (macOS Monterey / Intel MacBook):** Read [SAFE_MAC_MONTEREY.md](SAFE_MAC_MONTEREY.md) **before setup**. The fork enforces fail-closed SHA-256 checks, preserves Gatekeeper quarantine, and requires explicitly configured watched folders. The original quick-start instructions below may not reflect these safety restrictions. Do not use a primary Google account or store your only copy of photos here.
 
 
