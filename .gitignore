@@ -22,3 +22,6 @@ ehthumbs.db
 Desktop.ini
 $RECYCLE.BIN/
 .DS_Store
+
+# Locally compiled Mac app (do not distribute personal builds)
+GoogleUnlimited.app/
