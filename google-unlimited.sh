@@ -1116,21 +1116,25 @@ do_watch() {
         return 1
     fi
 
-    # Deduplicate watched folders
-    local unique_dirs=()
-    for d in "${watch_dirs[@]}"; do
-        local seen=0
-        for u in "${unique_dirs[@]}"; do
-            [ "$u" = "$d" ] && seen=1 && break
-        done
-        [ $seen -eq 0 ] && unique_dirs+=("$d")
-    done
-    watch_dirs=("${unique_dirs[@]}")
-
-    if [ ${#watch_dirs[@]} -eq 0 ]; then
+    # Bash 3.2 (macOS Monterey) with 'set -u' treats empty-array expansion
+    # as an unbound variable. Reject an empty folder list before deduplication.
+    if [ -z "${watch_dirs[0]-}" ]; then
         echo -e "${RED}[ERROR] No valid watch directories. Nothing will be scanned.${NC}" >&2
         return 1
     fi
+
+    # Seed deduplication with one real folder, so unique_dirs is never empty.
+    local unique_dirs=("${watch_dirs[0]}")
+    local d u seen i
+    for ((i=1; i<${#watch_dirs[@]}; i++)); do
+        d="${watch_dirs[i]}"
+        seen=0
+        for u in "${unique_dirs[@]}"; do
+            [ "$u" = "$d" ] && seen=1 && break
+        done
+        [ "$seen" -eq 0 ] && unique_dirs+=("$d")
+    done
+    watch_dirs=("${unique_dirs[@]}")
 
     echo ""
     echo -e "${CYAN}==========================================================${NC}"
