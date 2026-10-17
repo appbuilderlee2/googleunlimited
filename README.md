@@ -40,6 +40,12 @@
 
 ---
 
+## Upload results report (this fork)
+
+Run `bash google-unlimited.sh report` to see recorded successful uploads, files waiting for retry, and files that failed after exhausting retries. Failed uploads remain in a separate SQLite table instead of disappearing after the third attempt; a later successful upload clears the failure record. `status` still shows the existing summary.
+
+**Do not delete local originals based only on these counts:** local upload records do not independently verify cloud-side availability, completeness, or fidelity. Confirm the photos and videos in Google Photos, test downloading, and preserve another independent backup.
+
 ## Overview
 
 **GoogleUnlimited** monitors local folders on your computer and automatically synchronizes eligible photos and videos to your Google Photos library. It pairs native operating system event watchers (PowerShell on Windows, `fswatch` on macOS, and `inotify-tools` on Linux) with an embedded SQLite database (`gphotos.db`) and the standalone [`gotohp`](https://github.com/xob0t/gotohp) CLI binary.
