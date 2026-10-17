@@ -76,17 +76,18 @@ verify_binary() {
     fi
     local bname
     bname="$(basename "$bin_path")"
+    bname="${bname%.dl}"
     local expected
     expected="$(get_trusted_checksum "$bname")"
     if [ -z "$expected" ]; then
-        echo -e "${YELLOW}[WARN] No trusted checksum configured for $bname (skipping hash check).${NC}"
-        return 0
+        echo -e "${RED}[ERROR] No pinned SHA-256 for $bname. Refusing to run.${NC}" >&2
+        return 1
     fi
     local actual
     actual="$(compute_content_hash "$bin_path")"
     if [ -z "$actual" ]; then
-        echo -e "${YELLOW}[WARN] Neither sha256sum nor shasum available to verify binary integrity.${NC}"
-        return 0
+        echo -e "${RED}[ERROR] SHA-256 tool missing; refusing to run.${NC}" >&2
+        return 1
     fi
     if [ "$actual" = "$expected" ]; then
         echo -e "${GREEN}[OK] Verified $bname integrity (SHA-256: ${actual:0:16}...)${NC}"
@@ -127,7 +128,6 @@ get_gotohp_bin() {
 
     for cand in "${cands[@]}"; do
         if [ -s "$cand" ]; then
-            chmod +x "$cand" 2>/dev/null || true
             echo "$cand"
             return 0
         fi
@@ -136,16 +136,12 @@ get_gotohp_bin() {
     # Fallback to any other gotohp-cli binary in SCRIPT_DIR
     for cand in "$SCRIPT_DIR"/gotohp-cli*; do
         if [ -s "$cand" ] && [ "$cand" != "$SCRIPT_DIR/gotohp.config" ]; then
-            chmod +x "$cand" 2>/dev/null || true
             echo "$cand"
             return 0
         fi
     done
 
-    if command -v gotohp-cli >/dev/null 2>&1; then
-        command -v gotohp-cli
-        return 0
-    fi
+    
     echo ""
 }
 
@@ -172,6 +168,7 @@ run_gotohp() {
         echo "Please run: ./google-unlimited.sh setup" >&2
         exit 1
     fi
+    verify_binary "$bin" >&2 || { echo "Refusing to execute unverified gotohp." >&2; return 1; }
     local cmd=("$bin")
     if [ -f "$SCRIPT_DIR/gotohp.config" ]; then
         cmd+=("--config" "$SCRIPT_DIR/gotohp.config")
@@ -411,17 +408,19 @@ do_setup() {
                 else
                     echo -e "${RED}[SECURITY ERROR] Downloaded macOS binary failed integrity verification! Removing.${NC}" >&2
                     rm -f "$tmp_bin"
+                    return 1
                 fi
             else
                 echo -e "${RED}[ERROR] Failed to download gotohp-cli Universal for macOS.${NC}" >&2
                 rm -f "$tmp_bin"
+                return 1
             fi
         else
-            verify_binary "$target_bin" || true
+            verify_binary "$target_bin" || return 1
         fi
 
         if [ -s "$target_bin" ]; then
-            xattr -d com.apple.quarantine "$target_bin" 2>/dev/null || true
+            # Preserve Gatekeeper quarantine; never remove it automatically.
             chmod 700 "$target_bin" 2>/dev/null || true
         fi
 
@@ -476,13 +475,13 @@ do_setup() {
             verify_binary "$target_bin" || true
         fi
         if [ -s "$target_bin" ]; then
+            verify_binary "$target_bin" || return 1
             chmod 700 "$target_bin" 2>/dev/null || true
         fi
     fi
 
-    # Set execution permissions on scripts and binaries
+    # Never mark an unverified downloaded binary executable.
     chmod 755 "$SCRIPT_DIR"/*.sh 2>/dev/null || true
-    chmod 700 "$SCRIPT_DIR"/gotohp-cli* 2>/dev/null || true
 
     # Security: Restrict permissions on sensitive configuration files (SEC-03)
     if [ -f "$SCRIPT_DIR/gotohp.config" ]; then
@@ -1069,12 +1068,9 @@ do_watch() {
             fi
         done < "$SCRIPT_DIR/watch_dirs.txt"
     else
-        # Default behavior: ONLY image and photo folders (Pictures, Downloads, cloud photos)
-        for folder in "$HOME/Pictures" "$HOME/Downloads" "$HOME/Google Photos" "$HOME/OneDrive/Pictures" "$HOME/Pictures/iCloud Photos/Photos"; do
-            if [ -d "$folder" ]; then
-                watch_dirs+=("$folder")
-            fi
-        done
+        echo -e "${RED}[ERROR] No watch_dirs.txt configured. Refusing to scan personal folders by default.${NC}" >&2
+        echo "Create a dedicated upload folder, then put its absolute path in $SCRIPT_DIR/watch_dirs.txt" >&2
+        return 1
     fi
 
     # Deduplicate watched folders
@@ -1089,8 +1085,8 @@ do_watch() {
     watch_dirs=("${unique_dirs[@]}")
 
     if [ ${#watch_dirs[@]} -eq 0 ]; then
-        mkdir -p "$HOME/Pictures"
-        watch_dirs=("$HOME/Pictures")
+        echo -e "${RED}[ERROR] No valid watch directories. Nothing will be scanned.${NC}" >&2
+        return 1
     fi
 
     echo ""
@@ -1236,9 +1232,8 @@ do_creds() {
             fi
             printf "%s\n" "$token" | run_gotohp creds add -
         else
-            echo -e "${YELLOW}[SECURITY WARNING] Passing OAuth tokens via command-line arguments exposes them in process listings and shell history.${NC}" >&2
-            echo -e "${YELLOW}Please use: ./google-unlimited.sh creds add (interactive hidden prompt) or pipe: creds add -${NC}" >&2
-            printf "%s\n" "$token" | run_gotohp creds add -
+            echo -e "${RED}[ERROR] Do not pass tokens as CLI arguments. Run: ./google-unlimited.sh creds add${NC}" >&2
+            return 1
         fi
     else
         run_gotohp creds "$subcmd" "$@"
