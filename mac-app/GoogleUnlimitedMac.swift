@@ -76,6 +76,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         output.isSelectable = true
         output.font = NSFont.monospacedSystemFont(ofSize: 12, weight: .regular)
         output.textContainerInset = NSSize(width: 10, height: 10)
+        // Give the document view a nonzero size so log text actually renders.
+        output.frame = NSRect(x: 0, y: 0, width: 590, height: 260)
+        output.minSize = NSSize(width: 0, height: 260)
+        output.maxSize = NSSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude)
+        output.isVerticallyResizable = true
+        output.isHorizontallyResizable = false
+        output.autoresizingMask = [.width]
+        output.textContainer?.widthTracksTextView = true
+        output.textContainer?.containerSize = NSSize(width: 590, height: CGFloat.greatestFiniteMagnitude)
         scroll.documentView = output
 
         let notice = NSTextField(wrappingLabelWithString: "本地上傳紀錄不代表已核實雲端檔案。刪除本地副本前，請到 Google Photos 檢查並保留另一份備份。")
@@ -111,12 +120,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func append(_ message: String) {
         DispatchQueue.main.async {
-            self.output.textStorage?.append(NSAttributedString(string: message))
+            let clean = message.replacingOccurrences(
+                of: "\\u{001B}\\[[0-9;]*[A-Za-z]",
+                with: "",
+                options: .regularExpression
+            )
+            self.output.textStorage?.append(NSAttributedString(string: clean))
             self.output.scrollToEndOfDocument(nil)
         }
     }
     private func updateState(_ message: String) {
         DispatchQueue.main.async { self.state.stringValue = message }
+    }
+    // Finder-launched apps do not inherit the Terminal Homebrew PATH.
+    private func taskEnvironment() -> [String: String] {
+        var env = ProcessInfo.processInfo.environment
+        let current = env["PATH"] ?? "/usr/bin:/bin:/usr/sbin:/sbin"
+        env["PATH"] = "/usr/local/bin:/usr/local/sbin:/opt/homebrew/bin:" + current
+        env["TERM"] = "dumb"
+        env["NO_COLOR"] = "1"
+        return env
     }
     private func command(_ name: String) {
         guard FileManager.default.fileExists(atPath: script.path) else {
@@ -130,6 +153,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             task.executableURL = URL(fileURLWithPath: "/bin/bash")
             task.arguments = [bin, name]
             task.currentDirectoryURL = folder
+            task.environment = self.taskEnvironment()
             let pipe = Pipe()
             task.standardOutput = pipe
             task.standardError = pipe
@@ -154,6 +178,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         task.executableURL = URL(fileURLWithPath: "/bin/bash")
         task.arguments = [script.path, "watch"]
         task.currentDirectoryURL = project
+        task.environment = taskEnvironment()
         let pipe = Pipe()
         task.standardOutput = pipe
         task.standardError = pipe
