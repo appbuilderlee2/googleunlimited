@@ -1,5 +1,8 @@
 # GoogleUnlimited
 
+> **Security notice for this fork (macOS Monterey / Intel MacBook):** Read [SAFE_MAC_MONTEREY.md](SAFE_MAC_MONTEREY.md) **before setup**. The fork enforces fail-closed SHA-256 checks, preserves Gatekeeper quarantine, and requires explicitly configured watched folders. The original quick-start instructions below may not reflect these safety restrictions. Do not use a primary Google account or store your only copy of photos here.
+
+
 > Automated, cross-platform media synchronization utility for Google Photos.  
 > Runs as a lightweight native background watcher on Windows, macOS, and Linux to automatically sync photos and videos using Google Pixel device emulation powered by [`xob0t/gotohp`](https://github.com/xob0t/gotohp) — without virtual machines, Android emulators, Windows Subsystem for Android (WSA), or WSL.
 
