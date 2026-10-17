@@ -121,7 +121,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func append(_ message: String) {
         DispatchQueue.main.async {
             let clean = message.replacingOccurrences(
-                of: "\\u{001B}\\[[0-9;]*[A-Za-z]",
+                of: "\u{001B}\\[[0-9;]*[A-Za-z]",
                 with: "",
                 options: .regularExpression
             )
