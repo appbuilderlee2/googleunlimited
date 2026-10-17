@@ -466,13 +466,15 @@ do_setup() {
                 else
                     echo -e "${RED}[SECURITY ERROR] Downloaded Linux binary failed integrity verification! Removing.${NC}" >&2
                     rm -f "$tmp_bin"
+                    return 1
                 fi
             else
                 echo -e "${RED}[ERROR] Failed to download gotohp-cli binary.${NC}" >&2
                 rm -f "$tmp_bin"
+                return 1
             fi
         else
-            verify_binary "$target_bin" || true
+            verify_binary "$target_bin" || return 1
         fi
         if [ -s "$target_bin" ]; then
             verify_binary "$target_bin" || return 1
@@ -511,7 +513,7 @@ do_setup() {
         echo "  3. Run (interactive hidden input - SEC-01):"
         echo "     ./google-unlimited.sh ${cfg_hint}creds add"
         echo "     Or pipe via standard input:"
-        echo "     echo \"<oauth_token>\" | ./google-unlimited.sh ${cfg_hint}creds add -"
+        echo "     ./google-unlimited.sh ${cfg_hint}creds add  # interactive hidden prompt"
         echo -e "${YELLOW}==========================================================${NC}"
     fi
 
@@ -1021,7 +1023,7 @@ do_watch() {
         echo -e "${YELLOW}  ACTION REQUIRED: No Google Account Logged In!${NC}"
         echo -e "${RED}==========================================================${NC}"
         echo "  Please sign in by running:"
-        echo "    ./google-unlimited.sh creds add \"<oauth_token>\""
+        echo "    ./google-unlimited.sh creds add"
         echo -e "${RED}==========================================================${NC}"
         exit 1
     else
