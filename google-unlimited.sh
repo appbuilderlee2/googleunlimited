@@ -208,6 +208,12 @@ CREATE TABLE IF NOT EXISTS uploads (
     uploaded_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
 );
 
+CREATE TABLE IF NOT EXISTS failed_uploads (
+    path TEXT PRIMARY KEY,
+    attempts INTEGER NOT NULL DEFAULT 0,
+    failed_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+);
+
 CREATE TABLE IF NOT EXISTS retry_queue (
     path         TEXT PRIMARY KEY,
     attempts     INTEGER NOT NULL DEFAULT 0,
@@ -324,6 +330,7 @@ save_upload() {
     sqlite3 "$DB" << EOF
 INSERT OR REPLACE INTO uploads(path, media_key, file_name, file_size, content_hash) VALUES ('$escaped_path', '$escaped_mkey', '$escaped_name', $fsize, '$escaped_hash');
 DELETE FROM retry_queue WHERE path = '$escaped_path';
+DELETE FROM failed_uploads WHERE path = '$escaped_path';
 EOF
 }
 
@@ -570,6 +577,39 @@ do_status() {
 
     echo -e "${CYAN}==========================================================${NC}"
     echo ""
+    echo "For an upload success / retry / failure summary, run:"
+    echo "  bash google-unlimited.sh report"
+    echo ""
+}
+
+# ---------------------------------------------------------------------
+# ACTION: UPLOAD REPORT — local records, not cloud-side verification
+# ---------------------------------------------------------------------
+do_report() {
+    init_db
+    local succeeded pending failed total current=0 missing=0
+    succeeded=$(sqlite3 "$DB" "SELECT COUNT(*) FROM uploads;" 2>/dev/null || echo 0)
+    pending=$(sqlite3 "$DB" "SELECT COUNT(*) FROM retry_queue;" 2>/dev/null || echo 0)
+    failed=$(sqlite3 "$DB" "SELECT COUNT(*) FROM failed_uploads;" 2>/dev/null || echo 0)
+    echo ""
+    echo "================ UPLOAD REPORT ================"
+    echo "Recorded successful uploads : $succeeded"
+    echo "Waiting for retry           : $pending"
+    echo "Failed after max retries    : $failed"
+    echo ""
+    if [ "$failed" -gt 0 ]; then
+        echo "Failed files:"
+        sqlite3 "$DB" "SELECT path || ' (' || attempts || ' attempts)' FROM failed_uploads ORDER BY failed_at DESC LIMIT 30;"
+    fi
+    if [ "$pending" -gt 0 ]; then
+        echo "Pending files:"
+        sqlite3 "$DB" "SELECT path FROM retry_queue ORDER BY last_attempt DESC LIMIT 30;"
+    fi
+    echo ""
+    echo "LOCAL RECORDS ARE NOT PROOF OF COMPLETE GOOGLE PHOTOS BACKUP."
+    echo "Before deleting files, check all intended items at photos.google.com,"
+    echo "play videos, test downloads, and keep a separate independent backup."
+    echo "==============================================="
 }
 
 # ---------------------------------------------------------------------
@@ -991,6 +1031,7 @@ invoke_upload() {
         attempts=$((attempts + 1))
         if [ "$attempts" -ge 3 ]; then
             write_log "GAVE UP after $attempts upload attempts: $fname$err_suffix" "ERROR"
+            sqlite3 "$DB" "INSERT OR REPLACE INTO failed_uploads(path, attempts) VALUES ('$escaped_path', $attempts);" 2>/dev/null || true
             remove_retry "$fpath"
         else
             write_log "FAILED upload$err_suffix (attempt $attempts/3) - queued for retry: $fname" "WARN"
@@ -1288,6 +1329,7 @@ show_help() {
     echo "  watch             Start live real-time sync watcher (default)"
     echo "  status            Check upload count and pending retries"
     echo "  logs              View last 30 sync activity log entries"
+    echo "  report            Show successes, pending retries and exhausted failures"
     echo "  setup             Install dependencies (fswatch/inotify-tools, sqlite3)"
     echo "  enable            Enable auto-start on boot (launchd on macOS / systemd on Linux)"
     echo "  disable           Disable auto-start service"
@@ -1309,6 +1351,9 @@ case "$CMD" in
         ;;
     status|--status|-s)
         do_status
+        ;;
+    report|--report)
+        do_report
         ;;
     logs|--logs|-l)
         do_logs
